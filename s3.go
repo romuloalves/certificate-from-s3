@@ -2,7 +2,7 @@ package certificateS3
 
 import (
 	"context"
-	"io"
+	"errors"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -26,7 +26,7 @@ func connectToS3Service(creds Credentials) *s3.S3 {
 	})
 }
 
-func getContentFromS3(s3Service *s3.S3, file File) (io.ReadCloser, error) {
+func getContentFromS3(s3Service *s3.S3, file File) ([]byte, error) {
 	ctx := context.Background()
 
 	result, err := s3Service.GetObjectWithContext(ctx, &s3.GetObjectInput{
@@ -38,14 +38,17 @@ func getContentFromS3(s3Service *s3.S3, file File) (io.ReadCloser, error) {
 		// Cast err to awserr.Error to handle specific error codes.
 		aerr, ok := err.(awserr.Error)
 		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-			// Specific error code handling
+			return nil, errors.New("Certificate does not exists.")
 		}
 		return nil, err
 	}
 
-	// Make sure to close the body when done with it for S3 GetObject APIs or
-	// will leak connections.
 	defer result.Body.Close()
 
-	return result.Body, nil
+	contentBytes, err := getContentBytes(result.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return contentBytes, nil
 }
